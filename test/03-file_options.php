@@ -12,6 +12,8 @@ $ts = new TarStream($name);
 # add simple text file
 $ts->add_file('foo/simple.txt', 'some simple text file');
 
+$ts->add_file_from_path('foo/zero.blob', 'zero.blob');
+
 # add file with options
 $ts->add_file('foo/test.txt', 'This is a sample text file.', array(
   'user'  => 'pabs',
