@@ -16,9 +16,6 @@ class TarStream {
     # preserve hard links?
     'preserve_links'        => true,
 
-    'force_gzip'            => false,
-    'force_bzip2'           => false,
-
     'auto_compress'         => true,
     'compress_level'        => -1,
     'buffer_size'           => 16384,
