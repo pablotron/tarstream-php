@@ -17,7 +17,7 @@ $ts = new TarStream($name);
 $ts->add_file('foo/simple.txt', 'some simple text file');
 
 # add file from disk that compresses well
-$ts->add_file_from_path('foo/zero.blob', 'zero.blob');
+$ts->add_file_from_path('foo/zero.blob', 'data/zero.blob');
 
 # finish stream and exit
 $ts->finish();

@@ -1,5 +1,6 @@
 <?php
 
+# load tarstream
 require '../tarstream.php';
 
 # create tar stream
@@ -17,15 +18,8 @@ $ts->add_file('foo/run_me.sh', 'echo shame on you', array(
   'mode'  => 0750,
 ));
 
-$ts->add_file_from_path('tiny.txt', 'tiny.txt');
-$ts->add_file_from_path('rand.blob', 'rand.blob');
-$ts->add_file_from_path('rand.symlink', 'rand.symlink');
-$ts->add_file_from_path('rand.hardlink', 'rand.hardlink');
-$ts->add_file_from_path('zero.blob', 'zero.blob');
-$ts->add_file_from_path('zero2.blob', 'zero.blob');
-
+# finish stream and exit
 $ts->finish();
-
 exit;
 
 ?>
