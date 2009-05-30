@@ -4,19 +4,22 @@ class TarStream {
   static $VERSION = '0.1.0';
 
   static $DEFAULT_OPTIONS = array(
-    'send_http_headers' => true,
+    'send_http_headers'     => true,
+
+    # allow leading slash in file name?
+    'allow_absolute_path'   => false,
 
     # preserve symlinks?
     # FIXME: do we really want this enabled by default?
-    'preserve_symlinks' => true,
+    'preserve_symlinks'     => true,
 
     # preserve hard links?
-    'preserve_links'    => true,
+    'preserve_links'        => true,
 
-    'force_gzip'        => false,
-    'auto_gzip'         => true,
-    'gzip_level'        => -1,
-    'gzip_buf_size'     => 16000,
+    'force_gzip'            => false,
+    'auto_gzip'             => true,
+    'gzip_level'            => -1,
+    'gzip_buf_size'         => 16000,
   );
 
   function __construct($name, $opt = array()) {
@@ -30,13 +33,17 @@ class TarStream {
     # build file header
     $header = $this->file_header($path, strlen($data), $opt);
 
+    # pad data to 512-byte boundary
+    if (($pad = (512 - (strlen($data) % 512))) != 512)
+      $data .= pack("x$pad");
+
     # send file data
-    return $this->send($header + $data);
+    return $this->send($header . $data);
   }
 
   static $STAT_OPT_MAP = array(
     'mode'  => 'mode',
-    'uid'   => 'uid'
+    'uid'   => 'uid',
     'gid'   => 'gid',
     'ctime' => 'time',
   );
@@ -84,7 +91,7 @@ class TarStream {
     $size = $opt['link'] ? $st['size'] : 0;
 
     # build and send file header
-    $ret = $this->send($this->file_header($name, $size, $opt))
+    $ret = $this->send($this->file_header($name, $size, $opt));
 
     # send file contents
     if (!$opt['link']) {
@@ -95,14 +102,8 @@ class TarStream {
         # read input file
         while (!feof($fh)) {
           # read block
-          $buf = fread($fh, $this->opt['gzip_buf_size'])
-
-          # compress block
-          $buf = gzencode($buf);
-
-          # send compressed block
-          echo $buf;
-          $ret += strlen($buf);
+          $buf = fread($fh, $this->opt['gzip_buf_size']);
+          $this->send($buf);
         }
 
         # close input file
@@ -110,33 +111,21 @@ class TarStream {
       } else {
         if (@readfile($path) === false)
           throw new Exception("readfile() failed for '$path'");
-
-        # add file size to results
-        $ret += $st['size'];
       }
 
-      # calculate padding length
-      $pad_len = 512 - ($st['size'] % 512);
-
-      if ($pad_len > 0) {
-        $buf = pack('x' + $pad_len);
-
-        if ($this->gzip)
-          $buf = gzencode($buf);
-
-        echo $buf;
-        $ret += strlen($buf);
-      }
+      # send file padding
+      if (($pad = 512 - ($st['size'] % 512)) != 512)
+        $this->send(pack("x$pad"));
     }
 
-    # return results
-    return $ret;
+    # return total number of bytes sent
+    return $this->bytes_sent;
   }
 
   function add_dir($path, $opt = array()) {
     # append slash to file name
     if (substr($path, -1) != '/')
-      $path += '/';
+      $path .= '/';
 
     # set file type
     $opt['type'] = '5';
@@ -149,7 +138,7 @@ class TarStream {
   }
 
   private function send($data) {
-    if ($this->opt['send_http_headers'] && !$this->headers_sent)
+    if ($this->opt['send_http_headers'] && !$this->http_headers_sent)
       $this->send_http_headers();
 
     # if gzip is enabled, then compress header
@@ -222,9 +211,6 @@ class TarStream {
   static $DEFAULT_HEADERS = array(
     # regular file
     'type'  => '0',
-
-    # reasonable default file mode
-    'mode'  => 0644,
   );
 
   private function check_path($path) {
@@ -238,15 +224,18 @@ class TarStream {
   # 
   private function file_header($path, $size, $opt = array()) {
     # strip leading slashes from path
-    $path = preg_replace($path, '/^\/+/', '');
+    if (!$this->opt['allow_absolute_path'])
+      $path = preg_replace('/^\/+/', '', $path);
     $this->check_path($path);
 
     # populate default options
     $opt = array_merge(self::$DEFAULT_HEADERS, $opt);
 
-    # set time
+    # set time and mode
     if (!$opt['time'])
       $opt['time'] = time();
+    if (!$opt['mode'])
+      $opt['mode'] = octdec('0644');
         
     # check path length
     $len = strlen($path);
@@ -274,41 +263,41 @@ class TarStream {
       throw new Exception("invalid type value: {$opt['type']}");
 
     # check link path length
-    $link_len = strlen($opt['link'])
+    $link_len = strlen($opt['link']);
     if ($link_len > 99) 
       throw new Exception("link path too long ($link_len > 99");
 
     # generate header
-    $ret = pack_fields(
-      array('@0a100',        $path),                          # name
+    $ret = $this->pack_fields(array(
+      array('a100',         $path),                           # name
       array('@100a8',       $this->octal($opt['mode'],  8)),  # mode
       array('@108a8',       $this->octal($opt['uid'],   8)),  # uid
       array('@116a8',       $this->octal($opt['gid'],   8)),  # gid
       array('@124a12',      $this->octal($size,         12)), # size
       array('@136a12',      $this->octal($opt['time'],  12)), # time
-      array('@148a8',       '        '),                      # checksum
-      array('@156a1',       $opt['type']),                    # type
-      array('@157a100',     $opt['link']),                    # link
-      array('@257a6',       'ustar'),                         # ustar tag
-      array('@263a2',       '00'),                            # ustar version
-      array('@265a32',      $opt['user']),                    # user name
-      array('@297a32',      $opt['group']),                   # user name
-      array('@329a8',       $opt['major']),                   # dev major
-      array('@337a8',       $opt['minor']),                   # dev minor
-      array('@345a155',     $prefix),                         # prefix
-      array('@511',         null),                            # padding
-    );
+      array('@149a8',       '        '),                      # checksum
+      array('@157a1',       $opt['type']),                    # type
+      array('@158a100',     $opt['link']),                    # link
+      array('@258a6',       'ustar'),                         # ustar tag
+      array('@263a2',       '  '),                            # ustar version
+      array('@266a32',      $opt['user']),                    # user name
+      array('@298a32',      $opt['group']),                   # user name
+      array('@330a8',       $opt['major']),                   # dev major
+      array('@338a8',       $opt['minor']),                   # dev minor
+      array('@346a155',     $prefix),                         # prefix
+      array('@513')                                           # padding
+    ));
 
     # calculate header checksum
     $sum = 0;
-    for ($i = 0; $i < 257; $i++)
-      $sum += chr($str[$i]);
+    for ($i = 0; $i < 512; $i++)
+      $sum += ord($ret[$i]);
 
     # create checksum string
-    $checksum = $this->octal($sum, 7) + ' ';
+    $checksum = pack('a7a1', str_pad(decoct($sum), 6, '0', STR_PAD_LEFT), ' ');
 
     # apply checksum and return result
-    return substr_replace($ret, $checksum, 148, 8);
+    return substr_replace($ret, $checksum, 148, 9);
   }
 
   private function needs_gzip($name, $opt) {
@@ -316,7 +305,7 @@ class TarStream {
       return true;
 
     if ($opt['auto_gzip'])
-      return preg_match($name, '/\.t?gz$/');
+      return preg_match('/\.t?gz$/', $name);
 
     return false;
   }
@@ -344,7 +333,7 @@ class TarStream {
     foreach ($fields as $field) {
       $fmt .= $field[0];
 
-      if ($field[1] !== null)
+      if (count($field) > 1)
         $args[] = $field[1];
     }
 
@@ -359,8 +348,8 @@ class TarStream {
   # convert a numeric value to a octal, left-padded with zeros
   #
   private function octal($num, $size) {
-    # convert number to padded octal string
-    return str_pad(decoct($num || 0), $size - 1, '0', STR_PAD_LEFT);
+    # convert number octal string, left-padded with zeros
+    return str_pad(decoct($num), $size - 1, '0', STR_PAD_LEFT);
   }
 };
 
