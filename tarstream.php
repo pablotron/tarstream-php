@@ -17,15 +17,33 @@ class TarStream {
     'preserve_links'        => true,
 
     'force_gzip'            => false,
-    'auto_gzip'             => true,
-    'gzip_level'            => -1,
-    'gzip_buf_size'         => 16000,
+    'force_bzip2'           => false,
+
+    'auto_compress'         => true,
+    'compress_level'        => -1,
+    'buffer_size'           => 16384,
+  );
+
+  static $COMPRESSION_TYPES = array(
+    'gzip' => array(
+      'compress_fn'   => 'gzencode',
+      'mime'          => 'application/x-gzip',
+      'default_level' => -1,
+      'extension_re'  => '/\.(tgz|tar\.gz)$/', 
+    ),
+
+    'bzip2' => array(
+      'compress_fn'   => 'bzcompress',
+      'mime'          => 'application/x-bzip2',
+      'default_level' => 4,
+      'extension_re'  => '/\.(tb2|tbz2|tar\.bz2)$/',
+    ),
   );
 
   function __construct($name, $opt = array()) {
-    $this->name = $name;
-    $this->opt  = array_merge(self::$DEFAULT_OPTIONS, $opt);
-    $this->gzip = $this->needs_gzip($this->name, $this->opt);
+    $this->name       = $name;
+    $this->opt        = array_merge(self::$DEFAULT_OPTIONS, $opt);
+    $this->compress   = $this->should_compress($this->name, $this->opt);
     $this->bytes_sent = 0;
   }
 
@@ -49,12 +67,12 @@ class TarStream {
   );
 
   function add_file_from_path($name, $path, $src_opt = array()) {
-    $st = $this->stat($path);
+    $st = $this->wrap_stat($path);
 
     # derive default options from stat output
     $opt = array();
-    foreach (self::$STAT_OPT_MAP as $src_key => $dst_key)
-      $opt[$dst_key] = $st[$src_key];
+    foreach (self::$STAT_OPT_MAP as $st_key => $opt_key)
+      $opt[$opt_key] = $st[$st_key];
 
     # extract symlink path
     if ($this->opt['preserve_symlinks'] && is_link($path)) {
@@ -88,33 +106,53 @@ class TarStream {
     }
 
     # get file size
-    $size = $opt['link'] ? $st['size'] : 0;
+    $size = ($opt['type'] == 2) ? 0 : $st['size'];
 
     # build and send file header
     $ret = $this->send($this->file_header($name, $size, $opt));
 
     # send file contents
     if (!$opt['link']) {
-      if ($this->gzip) {
+      if ($this->compress) {
         if (($fh = @fopen($path, 'rb')) === false)
           throw new Exception("fopen() failed for '$path'");
 
         # read input file
+        $file_len = 0;
         while (!feof($fh)) {
-          # read block
-          $buf = fread($fh, $this->opt['gzip_buf_size']);
-          $this->send($buf);
+          # read chunk
+          $buf = fread($fh, $this->opt['buffer_size']);
+
+          # send file chunk
+          if ($buf !== false && ($len = strlen($buf)) > 0) {
+            $this->send($buf);
+            $file_len += $len;
+          }
         }
+
+        # make sure the file size hasn't changed between the call to
+        # stat() and the calls to fread()
+        if ($file_len != $size) 
+          throw new Exception("file sizes differ: fread() = $file_len, stat() = $size");
 
         # close input file
         @fclose($fh);
       } else {
-        if (@readfile($path) === false)
+        # compression is disabled, so we can use readfile()
+        if (($sent = @readfile($path)) === false)
           throw new Exception("readfile() failed for '$path'");
+
+        # make sure the file size hasn't changed between the call to
+        # stat() and the call to readfile()
+        if ($sent != $size) 
+          throw new Exception("file sizes differ: readfile() = $sent, stat() = $size");
+
+        # add file size to output count
+        $this->bytes_sent += $size;
       }
 
       # send file padding
-      if (($pad = 512 - ($st['size'] % 512)) != 512)
+      if (($pad = 512 - ($size % 512)) != 512)
         $this->send(pack("x$pad"));
     }
 
@@ -141,9 +179,22 @@ class TarStream {
     if ($this->opt['send_http_headers'] && !$this->http_headers_sent)
       $this->send_http_headers();
 
-    # if gzip is enabled, then compress header
-    if ($this->gzip)
-      $data = gzencode($data);
+    # if compression is enabled, then compress header
+    if ($this->compress) {
+      # get compression info
+      $info = self::$COMPRESSION_TYPES[$this->compress];
+
+      # get compression function
+      $fn = $info['compress_fn'];
+
+      # get compression level
+      $level = $this->opt['compress_level'];
+      if ($level == -1)
+        $level = $info['default_level'];
+
+      # compress data
+      $data = $fn($data, $level);
+    }
 
     # send data, increment bytes sent
     echo $data;
@@ -160,18 +211,27 @@ class TarStream {
   );
 
   #
+  # get the suggested content-type for this stream
+  # (can be overridden by user)
+  #
+  private function get_content_type() {
+    $ret = 'application/x-tar';
+
+    if ($this->compress)
+      $ret = self::$COMPRESSION_TYPES[$this->compress]['mime'];
+
+    return "$ret; charset=binary";
+  }
+
+  #
   # Send HTTP headers for this stream.
   #
   private function send_http_headers() {
     # grab options
     $opt = $this->opt;
     
-    # build content type
-    $content_type = join('', array(
-      'application/',
-      $this->gzip ? 'x-gzip' : 'x-tar',
-      '; charset=binary',
-    ));
+    # build default content type
+    $content_type = $this->get_content_type();
 
     # grab content type from options
     if ($opt['content_type'])
@@ -300,17 +360,22 @@ class TarStream {
     return substr_replace($ret, $checksum, 148, 9);
   }
 
-  private function needs_gzip($name, $opt) {
-    if ($opt['force_gzip'])
-      return true;
+  private function should_compress($name, $opt) {
+    if ($opt['compress'])
+      return $opt['compress'];
 
-    if ($opt['auto_gzip'])
-      return preg_match('/\.t?gz$/', $name);
+    # if auto_compress is enabled (and it is by default), then test to
+    # see if the user-specified name matches any known types
+    if ($opt['auto_compress'])
+      foreach (self::$COMPRESSION_TYPES as $key => $data)
+        if (preg_match($data['extension_re'], $name))
+          return $key;
 
+    # no compression
     return false;
   }
 
-  private function stat($path) {
+  private function wrap_stat($path) {
     # stat file
     $st = ($this->opt['preserve_symlinks']) ? @lstat($path) : @stat($path);
 
