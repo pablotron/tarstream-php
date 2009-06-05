@@ -1,7 +1,7 @@
 <?php
 
 ##########################################################################
-# TarStream - Streamed, dynamically generated tar archives.              #
+# TarStream-PHP - Streamed, dynamically generated tar archives.          #
 # by Paul Duncan <pabs@pablotron.org>                                    #
 #                                                                        #
 # Copyright (C) 2009 Paul Duncan <pabs@pablotron.org>                    #
@@ -28,6 +28,59 @@
 
 class TarStream_Error extends Exception {};
 
+#
+# TarStream - Streamed, dynamically generated tar archives.
+# by Paul Duncan <pabs@pablotron.org>
+#
+# Requirements:
+#
+# * PHP version 5.1.2 or newer.
+#
+# Usage:
+#
+# Streaming tar archives is a simple, three-step process:
+#
+# 1.  Create the tar stream:
+#
+#     $tar = new TarStream('example.tar.gz');
+#
+# 2.  Add one or more files to the archive:
+#
+#     # add first file (dynamically generated)
+#     $data = "I am a sample text file";
+#     $tar->add_file('some_file.txt', $data);
+#
+#     # add second file (from existing file)
+#     $tar->add_file_from_path('another_file.png', 'path/to/foo.png');
+#
+# 3.  Finish the tar stream:
+#
+#     $tar->finish();
+#
+# TarStream will automatically compress the generated tarball with gzip
+# or bzip2 based on the output filename.  For example, a file named
+# "example.tar.gz" will be compressed with gzip, while "example.tar.bz2"
+# will be compressed with bzip2.
+#
+# You can also override the timestamp, owner, and type of files as you
+# add them to the archive.  See the API documentation for each method
+# below for additional information.
+#
+# Example:
+#
+#   # create a new TarStream object
+#   $tar = new TarStream('some_files.tar.gz');
+#
+#   # list of local files
+#   $files = array('foo.txt', 'bar.jpg');
+#
+#   # read and add each file to the archive
+#   foreach ($files as $path)
+#     $tar->add_file_from_path("some_files/$path", $path);
+# 
+#   # finish writing archive to output
+#   $tar->finish();
+#
 class TarStream {
   static $VERSION = '0.1.0';
 
@@ -65,7 +118,7 @@ class TarStream {
     ),
   );
 
-  function __construct($name, $opt = array()) {
+  function __construct($name = null, $opt = array()) {
     $this->name       = $name;
     $this->opt        = array_merge(self::$DEFAULT_OPTIONS, $opt);
     $this->compress   = $this->should_compress($this->name, $this->opt);
@@ -402,9 +455,10 @@ class TarStream {
     if ($opt['compress'])
       return $opt['compress'];
 
-    # if auto_compress is enabled (and it is by default), then test to
-    # see if the user-specified name matches any known types
-    if ($opt['auto_compress'])
+    # if name is defined and auto_compress is enabled (and it is by
+    # default), then test to see if the user-specified name matches any
+    # known compression types
+    if ($name && $opt['auto_compress'])
       foreach (self::$COMPRESSION_TYPES as $key => $data)
         if (preg_match($data['extension_re'], $name))
           return $key;
