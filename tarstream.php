@@ -68,18 +68,22 @@ class TarStream_Error extends Exception {};
 #
 # Example:
 #
-#   # create a new TarStream object
-#   $tar = new TarStream('some_files.tar.gz');
+#     # create a new TarStream object
+#     $tar = new TarStream('some_files.tar.gz');
 #
-#   # list of local files
-#   $files = array('foo.txt', 'bar.jpg');
+#     # add a dynamically generated text file
+#     $data = "Hello from TarStream-PHP!";
+#     $tar->add_file("some_files/hello.txt", $data);
 #
-#   # read and add each file to the archive
-#   foreach ($files as $path)
-#     $tar->add_file_from_path("some_files/$path", $path);
+#     # list of local files
+#     $files = array('foo.txt', 'bar.jpg');
+#
+#     # read and add each file to the archive
+#     foreach ($files as $path)
+#       $tar->add_file_from_path("some_files/$path", $path);
 # 
-#   # finish writing archive to output
-#   $tar->finish();
+#     # finish writing archive to output
+#     $tar->finish();
 #
 class TarStream {
   static $VERSION = '0.1.0';
