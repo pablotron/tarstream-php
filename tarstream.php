@@ -26,6 +26,8 @@
 # OTHER DEALINGS IN THE SOFTWARE.                                        #
 ##########################################################################
 
+class TarStream_Error extends Exception {};
+
 class TarStream {
   static $VERSION = '0.1.0';
 
@@ -138,7 +140,7 @@ class TarStream {
     if (!$opt['link']) {
       if ($this->compress) {
         if (($fh = @fopen($path, 'rb')) === false)
-          throw new Exception("fopen() failed for '$path'");
+          throw new TarStream_Error("fopen() failed for '$path'");
 
         # read input file
         $file_len = 0;
@@ -156,19 +158,19 @@ class TarStream {
         # make sure the file size hasn't changed between the call to
         # stat() and the calls to fread()
         if ($file_len != $size) 
-          throw new Exception("file sizes differ: fread() = $file_len, stat() = $size");
+          throw new TarStream_Error("file sizes differ: fread() = $file_len, stat() = $size");
 
         # close input file
         @fclose($fh);
       } else {
         # compression is disabled, so we can use readfile()
         if (($sent = @readfile($path)) === false)
-          throw new Exception("readfile() failed for '$path'");
+          throw new TarStream_Error("readfile() failed for '$path'");
 
         # make sure the file size hasn't changed between the call to
         # stat() and the call to readfile()
         if ($sent != $size) 
-          throw new Exception("file sizes differ: readfile() = $sent, stat() = $size");
+          throw new TarStream_Error("file sizes differ: readfile() = $sent, stat() = $size");
 
         # add file size to output count
         $this->bytes_sent += $size;
@@ -219,8 +221,22 @@ class TarStream {
       $data = $fn($data, $level);
     }
 
-    # send data, increment bytes sent
-    echo $data;
+    # was a callback specified?
+    if ($cb = $this->opt['callback']) {
+      # we have a callback function, so 
+      # pass our data to it
+      if (is_array($cb)) {
+        list($obj, $fn) = $cb;
+        $obj->$fn($data);
+      } else {
+        $cb($data);
+      }
+    } else {
+      # echo data to output stream
+      echo $data;
+    }
+
+    # increment byte count
     $this->bytes_sent += strlen($data);
 
     # return total number of bytes sent
@@ -283,7 +299,6 @@ class TarStream {
     $this->http_headers_sent = true;
   }
 
-
   static $FIELD_LIMITS = array(
     'mode'    => 8,
     'uid'     => 8,
@@ -299,7 +314,7 @@ class TarStream {
   private function check_path($path) {
     foreach (split('/', $path) as $part)
       if ($part == '..')
-        throw new Exception("invalida path: cannot contain '..'");
+        throw new TarStream_Error("invalida path: cannot contain '..'");
   }
 
   #
@@ -323,7 +338,7 @@ class TarStream {
     # check path length
     $len = strlen($path);
     if ($len > 253)
-      throw new Exception("file path too long ($len > 253)");
+      throw new TarStream_Error("file path too long ($len > 253)");
 
     # check file prefix
     $prefix = '';
@@ -338,17 +353,17 @@ class TarStream {
       $val = $opt[$key];
       $max = pow(8, $max);
       if ($val && ($val < 0 || $val > $max))
-        throw new Exception("invalid $key value ($val < 0 or $val > $max)");
+        throw new TarStream_Error("invalid $key value ($val < 0 or $val > $max)");
     }
 
     # verify type field
     if (strchr('0123456', $opt['type']) === false)
-      throw new Exception("invalid type value: {$opt['type']}");
+      throw new TarStream_Error("invalid type value: {$opt['type']}");
 
     # check link path length
     $link_len = strlen($opt['link']);
     if ($link_len > 99) 
-      throw new Exception("link path too long ($link_len > 99");
+      throw new TarStream_Error("link path too long ($link_len > 99");
 
     # generate header
     $ret = $this->pack_fields(array(
@@ -404,7 +419,7 @@ class TarStream {
 
     # check for error
     if ($st === false)
-      throw new Exception("stat() failed for '$path'");
+      throw new TarStream_Error("stat() failed for '$path'");
 
     # return result
     return $st;
