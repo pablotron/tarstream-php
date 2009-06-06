@@ -452,7 +452,7 @@ class TarStream {
   );
 
   #
-  # get the suggested content-type for this stream
+  # Get the suggested content-type for this stream
   # (can be overridden by user)
   #
   private function get_content_type() {
@@ -465,29 +465,27 @@ class TarStream {
   }
 
   #
-  # Send HTTP headers for this stream.
+  # Send HTTP headers for this stream (private).
   #
   private function send_http_headers() {
     # grab options
     $opt = $this->opt;
 
-    # build default content type
+    # set content type
     $content_type = $this->get_content_type();
-
-    # grab content type from options
     if ($opt['content_type'])
       $content_type = $this->opt['content_type'];
 
-    # grab content disposition
+    # set content disposition
     $disposition = 'attachment';
     if ($opt['content_disposition'])
       $disposition = $opt['content_disposition'];
 
-    # add filename to disposition
+    # add filename to disposition (if specified)
     if ($this->name)
       $disposition .= "; filename=\"{$this->name}\"";
 
-    # build headers
+    # build http headers
     $headers = array_merge(self::$HTTP_HEADERS, array(
       'Content-Type'        => $content_type,
       'Content-Disposition' => $disposition,
