@@ -265,6 +265,34 @@ class TarStream {
   #
   # Add dynamic file to TarStream object.
   #
+  # Parameters:
+  # 
+  #   * path: path and name of file inside archive (string, required).
+  #   * data: file contents (string, required).
+  #   * opt:  optional hash of file attributes (hash, optional).  See
+  #     the "File Options" section below for a list of available
+  #     options.
+  # 
+  # Examples:
+  # 
+  #   * Add a simple text file to the archive:
+  #
+  #     # file contents
+  #     $data = 'This is the contents of hello.txt.';
+  #     
+  #     # add file
+  #     $tar->add_file('foo/hello.txt', $data);
+  # 
+  #   * Add a text file and set the timestamp to one hour ago:
+  # 
+  #     # file contents
+  #     $data = 'This is the contents of hello.txt.';
+  #     
+  #     # add file with options
+  #     $tar->add_file('foo/hello.txt', $data, array(
+  #       'time' => time() - 3600, # one hour ago
+  #     ));
+  # 
   function add_file($path, $data, $opt = array()) {
     # build file header
     $header = $this->file_header($path, strlen($data), $opt);
@@ -384,6 +412,15 @@ class TarStream {
   #
   # Add empty directory to TarStream object.
   #
+  # Note: this method is not strictly necessary; decompression programs
+  # will create directories as necessary, so you really only need to use
+  # this method if you want to create empty directories.
+  #
+  # Example:
+  #
+  #     # add empty directory named 'foo/bar' to tar file
+  #     $tar->add_dir('foo/bar');
+  #
   function add_dir($path, $opt = array()) {
     # append slash to file name
     if (substr($path, -1) != '/')
@@ -397,6 +434,14 @@ class TarStream {
 
   #
   # Finish sending a TarStream object.
+  #
+  # Note: this method exists for compatability with ZipStream-PHP and
+  # currently does nothing, although that may change in the future.
+  #
+  # Example:
+  #
+  #     # finish tar stream
+  #     $tar->finish();
   #
   function finish() {
     # does nothing, added for compatability with zipstream-php
