@@ -212,6 +212,10 @@ class TarStream {
   #     # create new tar stream object using custom compression
   #     $tar = new TarStream('example.tar.foobar');
   #
+  # Note that your compression algorithm must be supported on the
+  # client-side; otherwise users will be unable to extract files from
+  # the archive.
+  #
   static $COMPRESSION_TYPES = array(
     # gzip compressed tar archives
     'gzip' => array(
@@ -248,6 +252,9 @@ class TarStream {
   private $name, $opt, $compress, $bytes_sent,
           $inode_cache, $http_headers_sent = false;
 
+  #
+  # Create a new TarStream object.
+  #
   function __construct($name = null, $opt = array()) {
     $this->name       = $name;
     $this->opt        = array_merge(self::$DEFAULT_OPTIONS, $opt);
@@ -255,6 +262,9 @@ class TarStream {
     $this->bytes_sent = 0;
   }
 
+  #
+  # Add dynamic file to TarStream object.
+  #
   function add_file($path, $data, $opt = array()) {
     # build file header
     $header = $this->file_header($path, strlen($data), $opt);
@@ -274,6 +284,9 @@ class TarStream {
     'ctime' => 'time',
   );
 
+  #
+  # Add existing file to TarStream object.
+  #
   function add_file_from_path($name, $path, $src_opt = array()) {
     $st = $this->wrap_stat($path);
 
@@ -368,6 +381,9 @@ class TarStream {
     return $this->bytes_sent;
   }
 
+  #
+  # Add empty directory to TarStream object.
+  #
   function add_dir($path, $opt = array()) {
     # append slash to file name
     if (substr($path, -1) != '/')
@@ -379,6 +395,9 @@ class TarStream {
     return $this->add_file($path, '', $opt);
   }
 
+  #
+  # Finish sending a TarStream object.
+  #
   function finish() {
     # does nothing, added for compatability with zipstream-php
   }
