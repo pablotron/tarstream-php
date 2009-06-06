@@ -266,33 +266,33 @@ class TarStream {
   # Add dynamic file to TarStream object.
   #
   # Parameters:
-  # 
+  #
   #   * path: path and name of file inside archive (string, required).
   #   * data: file contents (string, required).
   #   * opt:  optional hash of file attributes (hash, optional).  See
   #     the "File Options" section below for a list of available
   #     options.
-  # 
+  #
   # Examples:
-  # 
+  #
   #   * Add a simple text file to the archive:
   #
   #     # file contents
   #     $data = 'This is the contents of hello.txt.';
-  #     
+  #
   #     # add file
   #     $tar->add_file('foo/hello.txt', $data);
-  # 
+  #
   #   * Add a text file and set the timestamp to one hour ago:
-  # 
+  #
   #     # file contents
   #     $data = 'This is the contents of hello.txt.';
-  #     
+  #
   #     # add file with options
   #     $tar->add_file('foo/hello.txt', $data, array(
   #       'time' => time() - 3600, # one hour ago
   #     ));
-  # 
+  #
   function add_file($path, $data, $opt = array()) {
     # build file header
     $header = $this->file_header($path, strlen($data), $opt);
