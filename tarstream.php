@@ -192,21 +192,61 @@ class TarStream {
     'buffer_size'           => 16384,
   );
 
+  #
+  # Hash of compression types supported by TarStream.  You can add your
+  # own compression types here if you'd like.  For example:
+  #
+  #     # Add support for a new compression type "foobar" to TarStream
+  #     # with a mime type of "application/x-foobar", using the
+  #     # compression function "foobar_compress()", and file extensions
+  #     # ".tar.foobar" and ".tfb":
+  #     TarStreawm::$COMPRESSION_TYPES['foobar'] = array(
+  #       'compress_fn'   => 'foobar_compress',
+  #       'mime'          => 'application/x-foobar',
+  #       'default_level' => -1,
+  #       'extension_re'  => '/\.(tfb|tar\.foobar)$/',
+  #     );
+  #
+  #     # ... later in code
+  #
+  #     # create new tar stream object using custom compression
+  #     $tar = new TarStream('example.tar.foobar');
+  #
   static $COMPRESSION_TYPES = array(
+    # gzip compressed tar archives
     'gzip' => array(
+      # gzip compression function
       'compress_fn'   => 'gzencode',
+
+      # mime type for gzipped tar files
       'mime'          => 'application/x-gzip',
+
+      # default compression level
       'default_level' => -1,
+
+      # regular expression specifying matching filename suffixes
       'extension_re'  => '/\.(tgz|tar\.gz)$/',
     ),
 
+    # bzip2 compressed tar archives
     'bzip2' => array(
+      # bzip2 compression function
       'compress_fn'   => 'bzcompress',
+
+      # mime type for bzipped tar files
       'mime'          => 'application/x-bzip2',
+
+      # default compression level
       'default_level' => 4,
+
+      # regular expression specifying matching filename suffixes
       'extension_re'  => '/\.(tb2|tbz2?|tar\.bz2)$/',
     ),
   );
+
+  # declare private instance variables
+  private $name, $opt, $compress, $bytes_sent,
+          $inode_cache, $http_headers_sent = false;
 
   function __construct($name = null, $opt = array()) {
     $this->name       = $name;
@@ -227,7 +267,7 @@ class TarStream {
     return $this->send($header . $data);
   }
 
-  static $STAT_OPT_MAP = array(
+  private static $STAT_OPT_MAP = array(
     'mode'  => 'mode',
     'uid'   => 'uid',
     'gid'   => 'gid',
@@ -386,7 +426,7 @@ class TarStream {
     return $this->bytes_sent;
   }
 
-  static $HTTP_HEADERS = array(
+  private static $HTTP_HEADERS = array(
     'Pragma'                    => 'public',
     'Cache-Control'             => 'public, must-revalidate',
     'Content-Transfer-Encoding' => 'binary',
@@ -442,14 +482,14 @@ class TarStream {
     $this->http_headers_sent = true;
   }
 
-  static $FIELD_LIMITS = array(
+  private static $FIELD_LIMITS = array(
     'mode'    => 8,
     'uid'     => 8,
     'gid'     => 8,
     'time'    => 12,
   );
 
-  static $DEFAULT_HEADERS = array(
+  private static $DEFAULT_HEADERS = array(
     # regular file
     'type'  => '0',
   );
