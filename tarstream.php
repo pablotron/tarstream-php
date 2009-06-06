@@ -81,28 +81,114 @@ class TarStream_Error extends Exception {};
 #     # read and add each file to the archive
 #     foreach ($files as $path)
 #       $tar->add_file_from_path("some_files/$path", $path);
-# 
+#
 #     # finish writing archive to output
 #     $tar->finish();
 #
 class TarStream {
+  #
+  # Release version of TarStream-PHP.
+  #
   static $VERSION = '0.1.0';
 
+  #
+  # Default options for a new TarStream object.  You can override any of
+  # these options by passing a second parameter to the TarStream
+  # constructor, like so:
+  #
+  #     # create new archive and override the 'preserve_symlinks` and
+  #     # 'allow_absolute_path' options
+  #     $tar = new TarStream('example.tar.tz', array(
+  #       'preserve_symlinks'   => false,
+  #       'allow_absolute_path' => true,
+  #     ));
+  #
   static $DEFAULT_OPTIONS = array(
+    # Send HTTP headers?
     'send_http_headers'     => true,
 
-    # allow leading slash in file name?
+    # Allow leading slash in file name?
     'allow_absolute_path'   => false,
 
-    # preserve symlinks?
-    # FIXME: do we really want this enabled by default?
+    #
+    # Preserve symbolic links?
+    #
+    # If enabled, TarStream will honor symbolic links; that is, if you
+    # pass a symbolic link to add_file_from_path(), then TarStream will
+    # add a symbolic link to the archive.  If this option is set to
+    # false, then TarStream will dereference symbolic links and add them
+    # as regular files.
+    #
     'preserve_symlinks'     => true,
 
-    # preserve hard links?
+    #
+    # Preserve hard links?
+    #
+    # If enabled, TarStream will keep an intelligent cache of hard
+    # links and attempt to preserve then within the generated archive.
+    #
+    # For example:
+    #
+    #     # create a sample text file named "a.txt"
+    #     $ echo "it really tied the room together" > a.txt
+    #
+    #     # hard link "b.txt" to "a.txt"
+    #     $ ln a.txt b.txt
+    #
+    #     # ... later on in PHP:
+    #
+    #     # create new streamed archive
+    #     $tar = new TarStream('example.tar.gz');
+    #
+    #     # add a.txt to the archive
+    #     $tar->add_file_from_path('example/a.txt', 'a.txt');
+    #
+    #     #
+    #     # add b.txt to the archive
+    #     #
+    #     # Note: At this point TarStream will notice that b.txt is a
+    #     # hard link to a file that already exists in the archive,
+    #     # and add it as such.
+    #     #
+    #     $tar->add_file_from_path('example/b.txt', 'b.txt');
+    #
+    #     # ... continue adding files
+    #
+    # It's probably best to leave this option enabled.
+    #
     'preserve_links'        => true,
 
+    #
+    # Automatically determine compression type based on filename?
+    #
+    # If this is true then files with a suffix of '.tar.gz', '.tgz',
+    # '.tar.bz2', '.tbz2', '.tb2', '.tbz', and '.tbz2' will be
+    # automatically compressed with the appropriate compression
+    # algorithm.
+    #
     'auto_compress'         => true,
-    'compress_level'        => -1,
+
+    #
+    # Default compression level (number).
+    #
+    # If set to 'auto' (the default), then TarStream uses the default
+    # compression level for the compression algorithm in use.
+    #
+    # It's probably best to leave this option at the default setting.
+    #
+    # Note that the exact meaning of this property varies depending on
+    # the compression algorithm used; see TarStream::$COMPRESSION_TYPES
+    # below for additional information.
+    #
+    'compress_level'        => 'auto',
+
+    #
+    # Input buffer size, in bytes.
+    #
+    # A larger buffer size means more memory (RAM) use, but better file
+    # compression.  Conversely, a smaller buffer size will lower server
+    # memory use, but files will not compress as well.
+    #
     'buffer_size'           => 16384,
   );
 
@@ -111,14 +197,14 @@ class TarStream {
       'compress_fn'   => 'gzencode',
       'mime'          => 'application/x-gzip',
       'default_level' => -1,
-      'extension_re'  => '/\.(tgz|tar\.gz)$/', 
+      'extension_re'  => '/\.(tgz|tar\.gz)$/',
     ),
 
     'bzip2' => array(
       'compress_fn'   => 'bzcompress',
       'mime'          => 'application/x-bzip2',
       'default_level' => 4,
-      'extension_re'  => '/\.(tb2|tbz2|tar\.bz2)$/',
+      'extension_re'  => '/\.(tb2|tbz2?|tar\.bz2)$/',
     ),
   );
 
@@ -173,7 +259,7 @@ class TarStream {
 
       # build key for this file
       $key = join('-', array(
-        $st['dev'], 
+        $st['dev'],
         $st['ino'],
       ));
 
@@ -214,7 +300,7 @@ class TarStream {
 
         # make sure the file size hasn't changed between the call to
         # stat() and the calls to fread()
-        if ($file_len != $size) 
+        if ($file_len != $size)
           throw new TarStream_Error("file sizes differ: fread() = $file_len, stat() = $size");
 
         # close input file
@@ -226,7 +312,7 @@ class TarStream {
 
         # make sure the file size hasn't changed between the call to
         # stat() and the call to readfile()
-        if ($sent != $size) 
+        if ($sent != $size)
           throw new TarStream_Error("file sizes differ: readfile() = $sent, stat() = $size");
 
         # add file size to output count
@@ -271,7 +357,7 @@ class TarStream {
 
       # get compression level
       $level = $this->opt['compress_level'];
-      if ($level == -1)
+      if ($level == 'auto')
         $level = $info['default_level'];
 
       # compress data
@@ -280,7 +366,7 @@ class TarStream {
 
     # was a callback specified?
     if ($cb = $this->opt['callback']) {
-      # we have a callback function, so 
+      # we have a callback function, so
       # pass our data to it
       if (is_array($cb)) {
         list($obj, $fn) = $cb;
@@ -325,7 +411,7 @@ class TarStream {
   private function send_http_headers() {
     # grab options
     $opt = $this->opt;
-    
+
     # build default content type
     $content_type = $this->get_content_type();
 
@@ -333,13 +419,13 @@ class TarStream {
     if ($opt['content_type'])
       $content_type = $this->opt['content_type'];
 
-    # grab content disposition 
+    # grab content disposition
     $disposition = 'attachment';
     if ($opt['content_disposition'])
       $disposition = $opt['content_disposition'];
 
     # add filename to disposition
-    if ($this->name) 
+    if ($this->name)
       $disposition .= "; filename=\"{$this->name}\"";
 
     # build headers
@@ -376,7 +462,7 @@ class TarStream {
 
   #
   # create ustar tar header for file
-  # 
+  #
   private function file_header($path, $size, $opt = array()) {
     # strip leading slashes from path
     if (!$this->opt['allow_absolute_path'])
@@ -391,7 +477,7 @@ class TarStream {
       $opt['time'] = time();
     if (!$opt['mode'])
       $opt['mode'] = octdec('0644');
-        
+
     # check path length
     $len = strlen($path);
     if ($len > 253)
@@ -419,7 +505,7 @@ class TarStream {
 
     # check link path length
     $link_len = strlen($opt['link']);
-    if ($link_len > 99) 
+    if ($link_len > 99)
       throw new TarStream_Error("link path too long ($link_len > 99");
 
     # generate header
