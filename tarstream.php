@@ -270,8 +270,38 @@ class TarStream {
   #   * path: path and name of file inside archive (string, required).
   #   * data: file contents (string, required).
   #   * opt:  optional hash of file attributes (hash, optional).  See
-  #     the "File Options" section below for a list of available
-  #     options.
+  #           the "File Options" section below for a list of available
+  #           options.
+  #
+  # File Options:
+  #
+  #   * time:   File creation time, as a Unix timestamp (e.g. an
+  #             integer representing the number of seconds since the
+  #             epoch).  Defaults to the current time.
+  #   * mode:   File permissions (integer).  Defaults to 0640, or
+  #             owner read/write, group read.
+  #   * type:   File type.  Defaults to ' ' (or regular file).  A
+  #             list of available file types is available below in
+  #             the "File Types" section.
+  #   * uid:    User ID of file owner (integer).  Defaults to 0.
+  #   * gid:    Group ID of file group (integer).  Defaults to 0.
+  #   * user:   Name of file owner (string).  Defaults to ''.
+  #   * group:  Name of file group (string).  Defaults to ''.
+  #   * link:   Target for symbolic link (string).  Defaults to ''.
+  #   * major:  Major device number (integer).  Defaults to 0.
+  #   * minor:  Major device number (integer).  Defaults to 0.
+  #
+  # File Types:
+  #
+  # This is a list of values for the 'type' option:
+  #
+  #   * ' ': regular file
+  #   * '1': hard link
+  #   * '2': symbolic link
+  #   * '3': character device
+  #   * '4': block device
+  #   * '5': directory
+  #   * '6': FIFO
   #
   # Examples:
   #
@@ -314,6 +344,33 @@ class TarStream {
 
   #
   # Add existing file to TarStream object.
+  #
+  # Parameters:
+  #
+  #   * name: path and name of file inside archive (string, required).
+  #   * path: Filesystem path to file (string, required).
+  #   * opt:  optional hash of file attributes (hash, optional).  See
+  #           the "File Options" section in the add_file() documentation
+  #           above for a list of available options.
+  # Examples:
+  #
+  #   * Add file 'path/to/real_hello.txt' to the archive as
+  #     'foo/hello.txt':
+  #
+  #     # add file
+  #     $tar->add_file_from_path('foo/hello.txt', 'path/to/real_hello.txt');
+  #
+  #   * Add the file '/etc/hello.txt' to the archive as 'foo/hello.txt',
+  #     set the timestamp to one hour ago and the permissions to 0600:
+  #
+  #     # add file and set timestamp to one hour ago
+  #     $tar->add_file_from_path('foo/hello.txt', '/etc/hello.txt', array(
+  #       # set timestamp to one hour ago
+  #       'time' => time() - 3600,
+  #
+  #       # permissions: user = read/write, group/all = none
+  #       'mode' => 0600,
+  #     ));
   #
   function add_file_from_path($name, $path, $src_opt = array()) {
     $st = $this->wrap_stat($path);
@@ -412,6 +469,13 @@ class TarStream {
   #
   # Add empty directory to TarStream object.
   #
+  # Parameters:
+  #
+  #   * path: path and name of directory inside archive (string, required).
+  #   * opt:  optional hash of directory attributes (hash, optional).  See
+  #           the "File Options" section in the add_file() documentation
+  #           above for a list of available options.
+  #
   # Note: this method is not strictly necessary; decompression programs
   # will create directories as necessary, so you really only need to use
   # this method if you want to create empty directories.
@@ -428,6 +492,10 @@ class TarStream {
 
     # set file type
     $opt['type'] = '5';
+
+    # set reasonable mode, if unspecified
+    if (!$opt['mode'])
+      $opt['mode'] = 0750;
 
     return $this->add_file($path, '', $opt);
   }
@@ -554,6 +622,9 @@ class TarStream {
   private static $DEFAULT_HEADERS = array(
     # regular file
     'type'  => '0',
+
+    # default mode
+    'mode'  => 0640,
   );
 
   private function check_path($path) {
@@ -577,8 +648,6 @@ class TarStream {
     # set time and mode
     if (!$opt['time'])
       $opt['time'] = time();
-    if (!$opt['mode'])
-      $opt['mode'] = octdec('0644');
 
     # check path length
     $len = strlen($path);
