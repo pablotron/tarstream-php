@@ -1,0 +1,57 @@
+TarStream-PHP 0.1.0 README
+==========================
+
+Overview
+========
+A fast and simple streaming tar archive library for PHP.  Archives
+created by TarStream are created and sent over the wire on the fly
+(without being cached in memory or saved to disk).  Here's a simple
+example:
+
+    # create a new tarstream object
+    $tar = new TarStream('example.tar.gz');
+
+    # create a file named 'hello.txt' 
+    $tar->add_file('hello.txt', 'This is the contents of hello.txt.');
+
+    # add a file named 'image.jpg' from a local file 'path/to/image.jpg'
+    $tar->add_file_from_path('some_image.jpg', 'path/to/image.jpg');
+
+    # finish the stream
+    $tar->finish();
+
+You can also modify file attributes and customize (or disable) the HTTP
+headers.  See the inline documentation in the file `tarstream.php` for
+additional information.
+
+TarStream-PHP is distributed under the terms of the MIT/X11 license;
+please see the "License" section below or the file COPYING for the full
+license text.
+
+License
+=======
+Copyright (C) 2009 Paul Duncan <pabs@pablotron.org>
+ 
+Permission is hereby granted, free of charge, to any person obtaining a
+copy of this software and associated documentation files (the
+"Software"), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
+  
+The above copyright notice and this permission notice shall be included
+in all copies or substantial portions of the of the Software.
+   
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.  
+
+About the Author
+================
+Paul Duncan <pabs@pablotron.org>
+http://pablotron.org/
