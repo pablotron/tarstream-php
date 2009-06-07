@@ -264,6 +264,10 @@ class TarStream {
   #
   # Archive Options:
   #
+  #   * callback: pass output data to this function instead of
+  #     sending it to standard output.  You can use this option to write
+  #     TarStream output to a local file.  See the "Using Callbacks"
+  #     section below for additional information.
   #   * content_type: Force a specific HTTP content type (string).
   #     Defaults to null, which tells TarStream to determine the content
   #     type automatically based on the compression type.
@@ -287,6 +291,94 @@ class TarStream {
   #     defaults to false.
   #   * send_http_headers: Send HTTP headers?  Boolean, defaults to
   #     true.
+  #
+  # Using Callbacks:
+  #
+  # The callback option allows you to pass output data to a callback
+  # function instead of writing it to standard output.  For example:
+  #
+  #     # name of output file
+  #     $name = 'hello.tar.gz';
+  #
+  #     # declare global file handle
+  #     $fh = null;
+  #
+  #     # callback function
+  #     function save_to_disk($data) {
+  #       # get global output file handle
+  #       global $fh;
+  #
+  #       # write data to output file handle
+  #       fwrite($fh, $data);
+  #     }
+  #
+  #     # open output file
+  #     if ($fh = fopen($name, 'w')) {
+  #       # create new tar stream
+  #       $tar = new TarStream($name, array(
+  #         # don't send http headers
+  #         'send_http_headers' => false,
+  #
+  #         # name of callback function
+  #         'callback'          => 'save_to_disk',
+  #       ));
+  #
+  #       # add file to stream
+  #       $tar->add_file('hello/world.txt', 'Hello world!');
+  #
+  #       # close archive
+  #       $tar->finish();
+  #
+  #       # close output file
+  #       fclose($fh);
+  #     }
+  #
+  # You can also specify a method of an object or class by using the
+  # standard (but horrid) PHP array syntax.  Here's the example above,
+  # rewritten to use an instance method as a callback:
+  #
+  #     # define tarfilewriter class
+  #     class TarFileWriter {
+  #       private $fh;
+  #
+  #       function __construct($path) {
+  #         $this->fh = @fopen($path, 'w');
+  #
+  #         if (!$this->fh)
+  #           throw new Exception("Couldn't open input file");
+  #       }
+  #
+  #       function write($data) {
+  #         fwrite($this->fh, $data);
+  #       }
+  #
+  #       function finish() {
+  #         fclose($this->fh);
+  #       }
+  #     };
+  #
+  #     # name of output file
+  #     $name = 'hello.tar.gz';
+  #
+  #     $writer = new TarFileWriter($name);
+  #
+  #     # create new tar stream
+  #     $tar = new TarStream($name, array(
+  #       # don't send http headers
+  #       'send_http_headers' => false,
+  #
+  #       # use TarFileWriter#write as a callback
+  #       'callback'          => array($writer, 'write'),
+  #     ));
+  #
+  #     # add file to stream
+  #     $tar->add_file('hello/world.txt', 'Hello world!');
+  #
+  #     # close archive
+  #     $tar->finish();
+  #
+  #     # close file writer
+  #     $writer->finish();
   #
   # Examples:
   #
