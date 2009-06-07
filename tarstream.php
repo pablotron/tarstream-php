@@ -255,6 +255,53 @@ class TarStream {
   #
   # Create a new TarStream object.
   #
+  # Parameters:
+  #
+  #   * name: name of archive (string, optional).
+  #   * opt:  optional hash of archive attributes (hash, optional).  See
+  #           the "Archive Options" section below for a list of available
+  #           options.
+  #
+  # Archive Options:
+  #
+  #   * content_type: Force a specific HTTP content type (string).
+  #     Defaults to null, which tells TarStream to determine the content
+  #     type automatically based on the compression type.
+  #   * content_disposition: Force specific HTTP content disposition
+  #     (string).  Defaults to null, which tells TarStream to
+  #     automatically determine the content disposition.
+  #   * compress: Type of compression to use (string).  Defaults to
+  #     null.  Use this option if you're sending a file with a non-
+  #     standard extension or want to force a specific type of
+  #     compression.
+  #   * buffer_size: Input buffer size, in bytes (integer).  Defaults
+  #     to 16384.
+  #   * compress_level: Default compression level (number, or 'auto').
+  #     Defaults to 'auto'.
+  #   * auto_compress: Automatically determine compression type based
+  #     on filename?  Boolean, defaults to true.
+  #   * preserve_links: Preserve hard links?  Boolean, defaults to true.
+  #   * preserve_symlinks: Preserve symbolic links?  Boolean, defaults
+  #     to true.
+  #   * allow_absolute_path: Allow leading slash in file name? Boolean,
+  #     defaults to false.
+  #   * send_http_headers: Send HTTP headers?  Boolean, defaults to
+  #     true.
+  #
+  # Examples:
+  #
+  #   * Create a new tarstream named 'example.tar':
+  #
+  #     $tar = new TarStream('example.tar');
+  #
+  #   * Create a new gzipped tarstream (tarball) named 'another.tar.gz':
+  #
+  #     $tar = new TarStream('another.tar.gz');
+  #
+  #   * Create a new gzipped tarstream (tarball) named 'another.tar.gz':
+  #
+  #     $tar = new TarStream('another.tar.gz');
+  #
   function __construct($name = null, $opt = array()) {
     $this->name       = $name;
     $this->opt        = array_merge(self::$DEFAULT_OPTIONS, $opt);
@@ -581,21 +628,18 @@ class TarStream {
   # Send HTTP headers for this stream (private).
   #
   private function send_http_headers() {
-    # grab options
-    $opt = $this->opt;
-
     # set content type
     $content_type = $this->get_content_type();
-    if ($opt['content_type'])
+    if ($this->opt['content_type'])
       $content_type = $this->opt['content_type'];
 
     # set content disposition
     $disposition = 'attachment';
-    if ($opt['content_disposition'])
-      $disposition = $opt['content_disposition'];
+    if ($this->opt['content_disposition'])
+      $disposition = $this->opt['content_disposition'];
 
     # add filename to disposition (if specified)
-    if ($this->name)
+    if (!$this->opt['content_disposition'] && $this->name)
       $disposition .= "; filename=\"{$this->name}\"";
 
     # build http headers
