@@ -298,9 +298,13 @@ class TarStream {
   #
   #     $tar = new TarStream('another.tar.gz');
   #
-  #   * Create a new gzipped tarstream (tarball) named 'another.tar.gz':
+  #   * Create a new archive compressed with bzip2 named 'foo.tar.bz2'
+  #     that does not preserve symbolic links:
   #
-  #     $tar = new TarStream('another.tar.gz');
+  #     $tar = new TarStream('foo.tar.bz2', array(
+  #       # do not preserve symbolic links
+  #       'preserve_symlinks' => false,
+  #     ));
   #
   function __construct($name = null, $opt = array()) {
     $this->name       = $name;
